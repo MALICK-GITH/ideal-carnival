@@ -1,0 +1,2 @@
+# Ce fichier garantit que le répertoire data est suivi par Git
+# Les fichiers CSV générés seront ajoutés au .gitignore

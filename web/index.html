@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>21x win - TwentyOne Data Collector</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="./style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <header class="row bg-dark text-white py-3 mb-4">
+            <div class="col">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="h3 mb-0">
+                            <i class="fas fa-database me-2"></i>
+                            21x win
+                        </h1>
+                        <p class="mb-0 text-muted">Collecteur de données TwentyOne</p>
+                    </div>
+                    <div class="text-end">
+                        <div class="badge bg-success" id="connectionStatus">
+                            <i class="fas fa-circle me-1"></i>
+                            Connecté
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <section class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-cogs me-2"></i>
+                            Contrôle du Collecteur
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-success" id="startBtn">
+                                        <i class="fas fa-play me-1"></i>
+                                        Démarrer
+                                    </button>
+                                    <button type="button" class="btn btn-warning" id="stopBtn">
+                                        <i class="fas fa-stop me-1"></i>
+                                        Arrêter
+                                    </button>
+                                    <button type="button" class="btn btn-info" id="collectBtn">
+                                        <i class="fas fa-download me-1"></i>
+                                        Collecter
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="refreshBtn">
+                                        <i class="fas fa-sync me-1"></i>
+                                        Actualiser
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="input-group">
+                                    <span class="input-group-text">Intervalle (ms)</span>
+                                    <input type="number" class="form-control" id="intervalInput" value="2000" min="1000" max="10000">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Status Cards -->
+        <section class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Statut</h6>
+                                <h3 id="collectorStatus" class="mb-0">Arrêté</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-power-off fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Total Données</h6>
+                                <h3 id="totalData" class="mb-0">0</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-database fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Événements</h6>
+                                <h3 id="totalEvents" class="mb-0">0</h3>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-calendar fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Dernière MAJ</h6>
+                                <h6 id="lastUpdate" class="mb-0">--:--:--</h6>
+                            </div>
+                            <div class="align-self-center">
+                                <i class="fas fa-clock fa-2x"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts and Data -->
+        <section class="row">
+            <!-- Chart -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Évolution des Collectes
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="collectionChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options Distribution -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-chart-pie me-2"></i>
+                            Distribution des Options
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="optionsChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recent Data Table -->
+        <section class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-table me-2"></i>
+                            Données Récentes
+                        </h5>
+                        <div>
+                            <input type="number" class="form-control form-control-sm d-inline-block" 
+                                   id="limitInput" value="50" min="10" max="500" style="width: 100px;">
+                            <button class="btn btn-sm btn-outline-primary ms-2" id="loadDataBtn">
+                                <i class="fas fa-search me-1"></i>
+                                Charger
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Event ID</th>
+                                        <th>Date</th>
+                                        <th>Option Type</th>
+                                        <th>Cote</th>
+                                        <th>État</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dataTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">
+                                            <i class="fas fa-spinner fa-spin me-2"></i>
+                                            Chargement des données...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Event Details Modal -->
+        <div class="modal fade" id="eventModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Détails de l'Événement</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <pre id="eventDetails" class="bg-light p-3 rounded"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Section -->
+        <section class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="fas fa-terminal me-2"></i>
+                            Logs du Système
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="logsContainer" class="bg-dark text-light p-3 rounded" style="height: 200px; overflow-y: auto; font-family: monospace;">
+                            <div class="text-muted">En attente de logs...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>
