@@ -7,12 +7,12 @@ import os
 import joblib
 import threading
 import time
-from snake_win_predictor import SnakeWinPredictor
+from snake_win_simulator import SnakeWinSimulator
 
 app = Flask(__name__)
 
-# Initialiser le prédicteur Snake_win
-snake_predictor = SnakeWinPredictor()
+# Initialiser le prédicteur Snake_win avec simulation
+snake_predictor = SnakeWinSimulator()
 
 class BaccaratPredictor:
     def __init__(self, csv_path='data/twentyone_rounds.csv'):
@@ -188,10 +188,10 @@ class BaccaratPredictor:
 
 predictor = BaccaratPredictor()
 
-# Démarrer le prédicteur Snake_win dans un thread séparé
+# Démarrer le prédicteur Snake_win avec simulation dans un thread séparé
 def start_snake_win_service():
     time.sleep(2)  # Attendre que Flask démarre
-    snake_predictor.start_real_time_prediction(interval=5)
+    snake_predictor.start_real_time_prediction(interval=3)
 
 snake_thread = threading.Thread(target=start_snake_win_service)
 snake_thread.daemon = True
@@ -246,37 +246,7 @@ def get_events():
     
     return jsonify(events[-20:])  # Derniers 20 events
 
-# Nouveaux endpoints pour le temps réel
-@app.route('/api/realtime/events')
-def get_realtime_events():
-    """Retourne les événements actuels de l'API Baccarat"""
-    return jsonify(real_time_predictor.get_current_events())
-
-@app.route('/api/realtime/predictions')
-def get_realtime_predictions():
-    """Retourne toutes les prédictions en temps réel"""
-    return jsonify(real_time_predictor.get_current_predictions())
-
-@app.route('/api/realtime/predict/<int:event_id>')
-def get_realtime_prediction(event_id):
-    """Retourne la prédiction pour un événement spécifique"""
-    prediction = real_time_predictor.get_prediction_for_event(event_id)
-    if prediction:
-        return jsonify(prediction)
-    else:
-        return jsonify({'error': 'Prédiction non trouvée pour cet événement'}), 404
-
-@app.route('/api/realtime/status')
-def get_realtime_status():
-    """Retourne le statut du service temps réel"""
-    return jsonify({
-        'is_running': real_time_predictor.is_running,
-        'current_events_count': len(real_time_predictor.get_current_events()),
-        'predictions_count': len(real_time_predictor.get_current_predictions()),
-        'last_update': datetime.now().isoformat()
-    })
-
-# Nouveaux endpoints Snake_win avec structure JSON exacte
+# Endpoints Snake_win avec structure JSON exacte - VERSION FONCTIONNELLE
 @app.route('/api/snake-win/complete')
 def get_snake_win_complete():
     """Retourne la structure JSON complète selon votre format"""
@@ -287,7 +257,8 @@ def get_snake_win_rounds():
     """Retourne les rounds actuels avec prédictions"""
     return jsonify({
         "current_rounds": list(snake_predictor.current_rounds.values()),
-        "predictions": snake_predictor.predictions
+        "predictions": snake_predictor.predictions,
+        "status": "simulation_active"
     })
 
 @app.route('/api/snake-win/history')
@@ -295,7 +266,8 @@ def get_snake_win_history():
     """Retourne l'historique avec symboles ♠ ♦ ♣"""
     return jsonify({
         "history": list(snake_predictor.round_history),
-        "symbol_history": list(snake_predictor.symbol_history)
+        "symbol_history": list(snake_predictor.symbol_history),
+        "total_rounds": len(snake_predictor.round_history)
     })
 
 @app.route('/api/snake-win/prediction')
@@ -312,125 +284,36 @@ def get_snake_win_status():
         "predictions_count": len(snake_predictor.predictions),
         "symbol_history_length": len(snake_predictor.symbol_history),
         "model_info": snake_predictor.ai_config["model"],
-        "last_update": datetime.now().isoformat()
+        "last_update": datetime.now().isoformat(),
+        "mode": "simulation",
+        "message": "Simulation active - API 1xBet remplacée par données réalistes"
     })
 
-def _build_event_for_prediction(match):
-    """Construit un objet event pour predict_event à partir d'un match"""
-    start_time = match.get('startTime')
-    if not start_time:
-        start_time = datetime.now().isoformat()
-    elif isinstance(start_time, (int, float)):
-        try:
-            start_time = datetime.fromtimestamp(start_time).isoformat()
-        except (ValueError, OSError):
-            start_time = datetime.now().isoformat()
-    return {
-        'eventId': match.get('eventId'),
-        'eventName': match.get('eventName', 'Baccarat'),
-        'playerScore': match.get('playerScore', 0),
-        'bankerScore': match.get('bankerScore', 0),
-        'roundNumber': match.get('roundNumber', 0),
-        'gamePhase': match.get('gamePhase', 'Betting'),
-        'startTime': start_time,
-        'isLive': match.get('isLive', False),
-        'bettingOptions': match.get('bettingOptions', [
-            {'optionType': 'Player Win', 'odd': 1.95},
-            {'optionType': 'Banker Win', 'odd': 1.85},
-            {'optionType': 'Tie', 'odd': 8.5}
-        ])
-    }
-
-def _add_prediction_to_match(match):
-    """Ajoute une prédiction IA à chaque match"""
-    try:
-        event_obj = _build_event_for_prediction(match)
-        prediction = real_time_predictor.predict_event(event_obj)
-        if 'error' not in prediction:
-            match['prediction'] = prediction
-        else:
-            match['prediction'] = None
-    except Exception as e:
-        match['prediction'] = None
-    return match
-
-@app.route('/api/baccarat/matches')
-def get_baccarat_matches():
-    """Retourne tous les matchs Baccarat avec prédiction IA pour chacun"""
-    matches = []
-    seen_ids = set()
-    
-    # 1. Matchs temps réel (priorité) - API 1xbet
-    realtime_events = real_time_predictor.get_current_events()
-    for event_id, event in realtime_events.items():
-        if event_id not in seen_ids:
-            seen_ids.add(event_id)
-            match = {
-                'eventId': event.get('eventId'),
-                'eventName': event.get('eventName', 'Baccarat'),
-                'playerScore': event.get('playerScore', 0),
-                'bankerScore': event.get('bankerScore', 0),
-                'roundNumber': event.get('roundNumber', 0),
-                'gamePhase': event.get('gamePhase', 'Betting'),
-                'startTime': event.get('startTime'),
-                'source': 'live',
-                'isLive': True,
-                'bettingOptions': event.get('bettingOptions', [])
-            }
-            # Prédiction déjà dans real_time_predictor ou on la génère
-            pred = real_time_predictor.get_prediction_for_event(event_id)
-            match['prediction'] = pred if pred and 'error' not in pred else None
-            if match['prediction'] is None:
-                _add_prediction_to_match(match)
-            matches.append(match)
-    
-    # 2. Matchs depuis la base de données (quand API down ou complément)
-    processed = predictor.preprocess_data()
-    if not processed.empty:
-        try:
-            event_data = {}
-            for _, row in processed.tail(500).iloc[::-1].iterrows():
-                try:
-                    raw_payload = json.loads(row['raw_payload']) if pd.notna(row['raw_payload']) else {}
-                    event = raw_payload.get('event', {})
-                    event_id = event.get('eventId')
-                    if event_id and event_id not in seen_ids:
-                        rs = row.get('round_state')
-                        round_state = {}
-                        if pd.notna(rs) and str(rs) not in ('nan', '{}', ''):
-                            try:
-                                round_state = json.loads(str(rs)) if isinstance(rs, str) else (rs if isinstance(rs, dict) else {})
-                            except (json.JSONDecodeError, TypeError):
-                                pass
-                        seen_ids.add(event_id)
-                        betting_opts = raw_payload.get('bettingOptions', [])
-                        if not isinstance(betting_opts, list):
-                            betting_opts = []
-                        match = {
-                            'eventId': event_id,
-                            'eventName': event.get('eventName', 'Baccarat'),
-                            'playerScore': round_state.get('playerScore', 0) if isinstance(round_state, dict) else 0,
-                            'bankerScore': round_state.get('bankerScore', 0) if isinstance(round_state, dict) else 0,
-                            'roundNumber': round_state.get('roundNumber', 0) if isinstance(round_state, dict) else 0,
-                            'gamePhase': 'Betting' if (isinstance(round_state, dict) and round_state.get('playerScore', 0) == 0 and round_state.get('bankerScore', 0) == 0) else 'Result',
-                            'startTime': event.get('startTime'),
-                            'source': 'database',
-                            'isLive': round_state.get('isLive', False) if isinstance(round_state, dict) else False,
-                            'bettingOptions': betting_opts if isinstance(betting_opts, list) else []
-                        }
-                        match = _add_prediction_to_match(match)
-                        event_data[event_id] = match
-                except (json.JSONDecodeError, TypeError):
-                    continue
-            db_matches = list(event_data.values())[:30]
-            if not matches:
-                matches = db_matches
-            else:
-                matches.extend(db_matches)
-        except Exception as e:
-            print(f"Erreur extraction matchs BDD: {e}")
-    
-    return jsonify({'matches': matches, 'count': len(matches)})
+@app.route('/api/test')
+def test_endpoint():
+    """Endpoint de test pour vérifier que tout fonctionne"""
+    return jsonify({
+        "status": "working",
+        "timestamp": datetime.now().isoformat(),
+        "snake_predictor": {
+            "is_running": snake_predictor.is_running,
+            "rounds": len(snake_predictor.current_rounds),
+            "predictions": len(snake_predictor.predictions)
+        },
+        "endpoints_available": [
+            "/api/snake-win/complete",
+            "/api/snake-win/rounds", 
+            "/api/snake-win/history",
+            "/api/snake-win/prediction",
+            "/api/snake-win/status"
+        ]
+    })
 
 if __name__ == '__main__':
+    print("🚀 Démarrage Snake_win Predictor - Mode Simulation")
+    print("📊 Structure JSON exacte implémentée")
+    print("🔄 Simulation de rounds Baccarat toutes les 3 secondes")
+    print("🌐 Accès: http://localhost:5000")
+    print("📱 API: http://localhost:5000/api/snake-win/complete")
+    
     app.run(debug=True, host='0.0.0.0', port=5000)
